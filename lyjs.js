@@ -117,6 +117,7 @@
             if(target == null || source == null){ return target === source; }
             return (target == source && target.constructor.toString() == source.constructor);
         },
+        type: getTypes,
         isObject: isObject,
         isNumeric: function(j){
             return !isNaN(parseFloat(j)) && isFinite(j);
