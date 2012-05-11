@@ -1,0 +1,302 @@
+!function(global, undefined){
+	var NAME = "$";
+	var VERSION = "1.0";
+	var LYJS = global[NAME];
+	var TIMESPANE = Now();
+    var cnWeeks = String.fromCharCode(26085,19968,20108,19977,22235,20116,20845);
+	var types = {};
+	var toString = Object.prototype.toString;
+    var trim = String.prototype.trim;
+    var slice = Array.prototype.slice;
+    ("Boolean Number String Function Array Date RegExp Object").replace(/[^\s]+/g, function (j) {
+    	types["[object " + j + "]"] = j.toLowerCase();
+    });
+    function Now(){ return (new Date()).getTime(); }
+    var $ = global[NAME] = function(object, context){
+    	if($.isFunction(object)){
+    		$.ready(object, context);
+    	}else{
+    		return new $.fn.init(object, context);
+    	}
+    };
+    $.type = function(j, n){
+        var name = (j === null ? String(j) : types[toString.call(j)] || "object");
+        if(n){ return n===name; }
+        return name;
+    };
+    $.isObject = function(j){ return j!==null && typeof j==="object" };
+    $.isFunction = function(j){ return $.type(j, "function"); }
+    $.extend = function(target, source){
+        var args = slice.apply(arguments), i = 1, k = args.length;
+        var depth = $.type(args[k-1]) === "boolean" ? (--k,args.pop()) : true;
+        if(k == 1){ target = this; i = 0; }else if(k < 1){ return this; }
+        if(!$.isObject(target) && !$.isFunction(target)){target = {};}
+        for(;source = args[i++];){
+            for(k in source){
+                var src = target[k], copy = source[k];
+                if(src === copy || copy === target){continue;}
+                if(depth || !(k in target)){
+                    if($.isObject(copy)){
+                        target[k] = $.extend(src||(copy.length != null?[]:{}),copy,depth); 
+                    }else{
+                        target[k] = copy;
+                    }
+                }
+            }
+        }
+        return target;
+    };
+    $.extend({
+        version: VERSION,
+        timespan: TIMESPANE,
+        now: Now,
+        noop: function(){},
+        trim: trim ? function(j){
+            return j===null?"":trim.call(j);
+        } : function(j){
+            if(j===null){ return ""; }else{
+                j = j.toString().replace(/^\s+/,"");
+                var len = j.length, space = /\S/;
+                while(!space.test(j.charAt(--len)));
+                return j.substr(0,len+1);
+            }
+        },
+        each: function(object, fn){
+            if ($.isFunction(fn)) {
+                var length = object.length, isObj = length === undefined, j = 0;
+                if (isObj) {
+                    for (j in object) {
+                        if (fn.call(object[j], j, object[j]) === false) { break; }
+                    }
+                } else {
+                    for (; j < length; j++) {
+                        if (fn.call(object[j], j, object[j]) === false) { break; }
+                    }
+                }
+            }
+            return object;
+        },
+        define: function(ns, handle){
+            var parent = $;
+            if(!handle){handle = ns;ns = $;}
+            if(typeof ns === "string"){
+                parent = $.namespace(ns);
+            }else if($.isObject(ns)){
+                parent = ns;
+            }
+            if($.isFunction(handle)){
+                handle.call(parent,$);
+            }else if($.isObject(handle)){
+                $.extend(parent, handle);
+            }
+            return $;
+        },
+        namespace: function(ns){
+            if (typeof ns === "string") {
+                var parent = $, nss = ns.split(".");
+                if (ns.charAt(0) === ".") {
+                    parent = global;
+                    nss.shift();
+                }
+                $.each(nss, function (i, n) {
+                    parent[n] = parent[n] || {};
+                    parent = parent[n];
+                });
+                return parent;
+            }
+            return ns;
+        },
+        compare: function(target, source){
+            if(target == null || source == null){ return target === source; }
+            return (target == source && target.constructor.toString() == source.constructor);
+        },
+        isNumeric: function(j){
+            return !isNaN(parseFloat(j)) && isFinite(j);
+        },
+        isArray: function(j){
+            return $.type(j, "array");
+        },
+        isEmptyObject: function(j) {
+            for(var key in j){ return false; }
+            return true;
+        },
+        isUndefined: function(j){
+            return typeof j === "undefined";
+        },
+        format: function(tpl, data){
+            var that = this;
+            return tpl == null ? "" : tpl.toString().replace(/{([.\w]+)}/g, function(a,b,c){
+                if(b.indexOf(".")>-1){
+                    b = b.split(".");
+                    c = b.shift();
+                    b = "{" + b.join(".") + "}";
+                    return that.format(b, data[c]);
+                }else{
+                    return data[b] || "";
+                }
+            });
+        },
+        dateFmt: function(date, fmt){
+            if($.type(date) !== "date"){
+                fmt = date;
+                date = new Date();
+            }
+            var d = {
+                "M+":date.getMonth() + 1,
+                "d+":date.getDate(),
+                "H+":date.getHours(),
+                "m+":date.getMinutes(),
+                "s+":date.getSeconds(),
+                "S":date.getMilliseconds()
+            }, k;
+            if(/(y+)/.test(fmt)){
+                fmt = fmt.replace(RegExp.$1, (date.getFullYear() + "").substr(4-RegExp.$1.length));
+            }
+            if(/(w)/i.test(fmt)){
+                fmt = fmt.replace(RegExp.$1, RegExp.$1=="w"?date.getDay():cnWeeks.charAt(date.getDay()));
+            }
+            for(k in d){
+                if(new RegExp("(" + k + ")").test(fmt)){
+                    fmt = fmt.replace(RegExp.$1, RegExp.$1.length==1?d[k]:("00"+d[k]).substr((d[k]+"").length));
+                }
+            }
+            return fmt;
+        },
+        padLeft: function(j, len, chr, isRight){
+            var s = j == null ? "" : j.toString(), l = s.length;
+            if(l < len){
+                l = new Array(len-l+1).join(chr||"0");
+                s = isRight ? (j + l) : (l + j);
+            }
+            return s;
+        },
+        padRight: function(j, len, chr){
+            return this.padLeft(j, len, chr, true);
+        },
+        get: function(deep){
+            if(deep === true){ global[NAME] = LYJS; }
+            return $;
+        }
+    });
+    $.define(function($){
+    	var doc = global.document;
+        var setTimeout = global.setTimeout;
+    	var DOMReady = false;
+    	var readyList;
+        var DOMContentLoaded;
+        var ie6 = this.msie6 = !('1'[0]) && !global.XMLHttpRequest;
+        this.msie = ie6 || (!+"\v1");
+        if(ie6){doc.execCommand("BackgroundImageCache",false,true);}
+        this.Queue = Queue;
+    	this.ready = function(fn){
+    		bindReady();
+            readyList.done(fn);
+            return this;
+    	};
+        function bindReady(){
+            if(readyList){ return; }
+            readyList = Queue();
+            if(doc.readyState === "complete"){
+                return setTimeout(fireReady, 1);
+            }
+            if(doc.addEventListener){
+                DOMContentLoaded = function() {
+                    doc.removeEventListener("DOMContentLoaded", DOMContentLoaded, false);
+                    fireReady();
+                };
+                doc.addEventListener("DOMContentLoaded", DOMContentLoaded, false);
+                global.addEventListener("load", fireReady, false);
+            }else if(doc.attachEvent){
+                DOMContentLoaded = function() {
+                    if(doc.readyState === "complete"){
+                        doc.detachEvent("onreadystatechange", DOMContentLoaded);
+                        fireReady();
+                    }
+                };
+                doc.attachEvent("onreadystatechange", DOMContentLoaded);
+                global.attachEvent("onload", fireReady);
+            }
+            var toplevel = false;
+            try {
+                toplevel = global.frameElement == null;
+            } catch(e) {}
+            if(doc.documentElement.doScroll && toplevel){
+                doScrollCheck();
+            }
+        }
+        function fireReady(){
+            if(!DOMReady){
+                if(!doc.body){ return setTimeout(fireReady,1); }
+                DOMReady = true;
+                readyList.fireWith(doc, [$]);
+            }
+        }
+        function doScrollCheck(){
+            if(DOMReady){ return; }
+            try{
+                doc.documentElement.doScroll("left");
+            }catch(e){
+                setTimeout(doScrollCheck,1);
+                return;
+            }
+            fireReady();
+        }
+        function Queue(){
+            var callbacks = [];
+            var fired, firing, cancelled;
+            var queue = {
+                done:function(){
+                    if(!cancelled){
+                        var args = arguments;
+                        var i = 0, length = args.length, elem, type, _fired;
+                        if(fired){
+                            _fired = fired;
+                            fired = 0;
+                        }
+                        while(i<length){
+                            elem = args[i++];
+                            type = $.type(elem);
+                            if(type === "array"){
+                                queue.done.apply(queue, elem);
+                            }else if(type === "function"){
+                                callbacks[callbacks.length] = elem;
+                            }
+                        }
+                        if(_fired){
+                            queue.fireWith(_fired[0], _fired[1]);
+                        }
+                    }
+                    return this;
+                },
+                fireWith:function(context, args){
+                    if(!cancelled && !fired && !firing){
+                        args = args || [];
+                        firing = 1;
+                        try{
+                            while(callbacks[0]){
+                                callbacks.shift().apply(context, args);
+                            }
+                        }finally{
+                            fired = [context, args];
+                            firing = 0;
+                        }
+                    }
+                    return this;
+                },
+                fire:function(){
+                    queue.fireWith(this, arguments);
+                    return this;
+                },
+                isFired:function(){
+                    return !!(firing || fired);
+                },
+                cancel:function(){
+                    cancelled = 1;
+                    callbacks = [];
+                    return this;
+                }
+            };
+            return queue;
+        }
+    });
+}(this);
