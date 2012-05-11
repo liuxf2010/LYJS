@@ -3,14 +3,18 @@
 	var VERSION = "1.0";
 	var LYJS = global[NAME];
 	var TIMESPANE = Now();
-    var cnWeeks = String.fromCharCode(26085,19968,20108,19977,22235,20116,20845);
 	var types = {};
+    var cnWeeks = String.fromCharCode(26085,19968,20108,19977,22235,20116,20845);
 	var toString = Object.prototype.toString;
     var trim = String.prototype.trim;
     var slice = Array.prototype.slice;
+    var doc = global.document, html = doc.documentElement;
+    var setTimeout = global.setTimeout;
+    var msie6 = !('1'[0]) && !global.XMLHttpRequest;
     ("Boolean Number String Function Array Date RegExp Object").replace(/[^\s]+/g, function (j) {
     	types["[object " + j + "]"] = j.toLowerCase();
     });
+    if(msie6){doc.execCommand("BackgroundImageCache",false,true);}
     function Now(){ return (new Date()).getTime(); }
     var $ = global[NAME] = function(object, context){
     	if($.isFunction(object)){
@@ -18,25 +22,28 @@
     	}else{
     		return new $.fn.init(object, context);
     	}
-    };
-    $.type = function(j, n){
+    }, getTypes = function(j, n){
         var name = (j === null ? String(j) : types[toString.call(j)] || "object");
         if(n){ return n===name; }
         return name;
+    }, isObject = function(j){ return j!==null && typeof j==="object" };
+    $.fn = $.prototype = {
+        length: 0,
+        init: function(object, context){},
+        slice: slice,
     };
-    $.isObject = function(j){ return j!==null && typeof j==="object" };
-    $.isFunction = function(j){ return $.type(j, "function"); }
-    $.extend = function(target, source){
+    $.fn.init.prototype = $.prototype;
+    $.extend = $.fn.extend = function(target, source){
         var args = slice.apply(arguments), i = 1, k = args.length;
-        var depth = $.type(args[k-1]) === "boolean" ? (--k,args.pop()) : true;
+        var depth = getTypes(args[k-1], "boolean") ? (--k,args.pop()) : true;
         if(k == 1){ target = this; i = 0; }else if(k < 1){ return this; }
-        if(!$.isObject(target) && !$.isFunction(target)){target = {};}
+        if(!isObject(target) && !getTypes(target,"function")){target = {};}
         for(;source = args[i++];){
             for(k in source){
                 var src = target[k], copy = source[k];
                 if(src === copy || copy === target){continue;}
                 if(depth || !(k in target)){
-                    if($.isObject(copy)){
+                    if(isObject(copy)){
                         target[k] = $.extend(src||(copy.length != null?[]:{}),copy,depth); 
                     }else{
                         target[k] = copy;
@@ -81,12 +88,12 @@
             if(!handle){handle = ns;ns = $;}
             if(typeof ns === "string"){
                 parent = $.namespace(ns);
-            }else if($.isObject(ns)){
+            }else if(isObject(ns)){
                 parent = ns;
             }
             if($.isFunction(handle)){
                 handle.call(parent,$);
-            }else if($.isObject(handle)){
+            }else if(isObject(handle)){
                 $.extend(parent, handle);
             }
             return $;
@@ -110,11 +117,15 @@
             if(target == null || source == null){ return target === source; }
             return (target == source && target.constructor.toString() == source.constructor);
         },
+        isObject: isObject,
         isNumeric: function(j){
             return !isNaN(parseFloat(j)) && isFinite(j);
         },
+        isFunction: function(j){
+            return getTypes(j, "function");
+        },
         isArray: function(j){
-            return $.type(j, "array");
+            return getTypes(j, "array");
         },
         isEmptyObject: function(j) {
             for(var key in j){ return false; }
@@ -137,7 +148,7 @@
             });
         },
         dateFmt: function(date, fmt){
-            if($.type(date) !== "date"){
+            if(getTypes(date) !== "date"){
                 fmt = date;
                 date = new Date();
             }
@@ -179,14 +190,11 @@
         }
     });
     $.define(function($){
-    	var doc = global.document;
-        var setTimeout = global.setTimeout;
     	var DOMReady = false;
     	var readyList;
         var DOMContentLoaded;
-        var ie6 = this.msie6 = !('1'[0]) && !global.XMLHttpRequest;
-        this.msie = ie6 || (!+"\v1");
-        if(ie6){doc.execCommand("BackgroundImageCache",false,true);}
+        this.MSIE6 = msie6;
+        this.MSIE = msie6 || (!+"\v1");
         this.Queue = Queue;
     	this.ready = function(fn){
     		bindReady();
@@ -255,7 +263,7 @@
                         }
                         while(i<length){
                             elem = args[i++];
-                            type = $.type(elem);
+                            type = getTypes(elem);
                             if(type === "array"){
                                 queue.done.apply(queue, elem);
                             }else if(type === "function"){
