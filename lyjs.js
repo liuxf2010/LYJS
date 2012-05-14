@@ -8,8 +8,18 @@
 	var toString = Object.prototype.toString;
     var trim = String.prototype.trim;
     var slice = Array.prototype.slice;
-    var doc = global.document, html = doc.documentElement;
+    var doc = global.document;
+    var html = doc.documentElement;
     var setTimeout = global.setTimeout;
+    var setInterval = global.setInterval;
+    var JSON = global.JSON;
+    var DOMParser = global.DOMParser;
+    var ActiveXObject = global.ActiveXObject;
+    var XMLHttpRequest = global.XMLHttpRequest;
+    var rvalidchars = /^[\],:{}\s]*$/;
+    var rvalidescape = /\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g;
+    var rvalidtokens = /"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g;
+    var rvalidbraces = /(?:^|:|,)(?:\s*\[)+/g;
     var msie6 = !('1'[0]) && !global.XMLHttpRequest;
     ("Boolean Number String Function Array Date RegExp Object").replace(/[^\s]+/g, function (j) {
     	types["[object " + j + "]"] = j.toLowerCase();
@@ -29,8 +39,7 @@
     }, isObject = function(j){ return j!==null && typeof j==="object" };
     $.fn = $.prototype = {
         length: 0,
-        init: function(object, context){},
-        slice: slice,
+        init: function(object, context){}
     };
     $.fn.init.prototype = $.prototype;
     $.extend = $.fn.extend = function(target, source){
@@ -58,6 +67,9 @@
         timespan: TIMESPANE,
         now: Now,
         noop: function(){},
+        error: function(msg){
+            throw new Error(msg);
+        },
         trim: trim ? function(j){
             return j===null?"":trim.call(j);
         } : function(j){
@@ -185,6 +197,40 @@
         padRight: function(j, len, chr){
             return this.padLeft(j, len, chr, true);
         },
+        parseJSON: function(data) {
+            if(typeof data !== "string" || !data){
+                return null;
+            }
+            data = $.trim(data);
+            if(JSON && JSON.parse){
+                return JSON.parse(data);
+            }
+            if(rvalidchars.test(data.replace(rvalidescape, "@")
+                .replace(rvalidtokens, "]")
+                .replace(rvalidbraces, ""))) {
+                return (new Function("return " + data))();
+            }
+            $.error("Invalid JSON: " + data);
+        },
+        parseXML: function(data) {
+            var xml, tmp;
+            try {
+                if(DOMParser){
+                    tmp = new DOMParser();
+                    xml = tmp.parseFromString(data, "text/xml");
+                } else {
+                    xml = new ActiveXObject("Microsoft.XMLDOM");
+                    xml.async = "false";
+                    xml.loadXML(data);
+                }
+            } catch(e) {
+                xml = undefined;
+            }
+            if (!xml || !xml.documentElement || xml.getElementsByTagName("parsererror").length) {
+                $.error("Invalid XML: " + data);
+            }
+            return xml;
+        },
         get: function(deep){
             if(deep === true){ global[NAME] = LYJS; }
             return $;
@@ -307,5 +353,72 @@
             };
             return queue;
         }
+    }).define(function($){
+        var log = global.console && global.console.log;
+        var logCache = [];
+        this.debug = false;
+        this.log = function(msg){
+            if(!this.debug){return msg;}
+            if(log){ log(msg); }else{
+                logCache[logCache.length] = msg;
+            }
+        };
+        this.log.flash = function(){
+            var str = logCache.join("\r\n");
+            logCache.length = 0;
+            return str;
+        };
+    }).define(function($){
+        var cache = {};
+        var guid_key = "lyjsData" + Now();
+        var guid = 0;
+        var fnData = this.data = function(object, name, data){
+            var id = object[guid_key];
+            if(!id){
+                object[guid_key] = id = ++guid;
+            }
+            if(!cache[id]){ cache[id] = {}; }
+            if(typeof name === "string"){
+                name = "@" + name;
+            }else if(typeof name === "object"){
+                data = $.extend(data, name);
+                name = "lyjs_data";
+            }else{
+                data = name;
+                name = "lyjs_data";
+            }
+            if(data === undefined){
+                return cache[id][name];
+            }else{
+                cache[id][name] = data;
+            }
+            return proData;
+        };
+        var proData = {
+            has:function(object){
+                object = object[guid_key] && cache[object[guid_key]];
+                return !!object && !$.isEmptyObject(object);
+            },
+            set:function(){
+                return fnData.apply(fnData, arguments);
+            },
+            remove:function(object, name){
+                var id = object[guid_key];
+                object = cache[id];
+                if(!id || !object){return;}
+                if(typeof name === "string"){
+                    name = "@" + name;
+                    delete object[name];
+                }else if(name === undefined){
+                    delete object["lyjs_data"];
+                }else if(typeof name === "object"){
+                    $.each(name, function(k){
+                        delete object[k];
+                    });
+                }
+                return fnData;
+            }
+        };
+        $.extend(fnData, proData);
     });
 }(this);
