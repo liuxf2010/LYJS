@@ -20,11 +20,9 @@
     var rvalidescape = /\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g;
     var rvalidtokens = /"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g;
     var rvalidbraces = /(?:^|:|,)(?:\s*\[)+/g;
-    var msie6 = !('1'[0]) && !global.XMLHttpRequest;
     ("Boolean Number String Function Array Date RegExp Object").replace(/[^\s]+/g, function (j) {
     	types["[object " + j + "]"] = j.toLowerCase();
     });
-    if(msie6){doc.execCommand("BackgroundImageCache",false,true);}
     function Now(){ return (new Date()).getTime(); }
     var $ = global[NAME] = function(object, context){
     	if($.isFunction(object)){
@@ -240,8 +238,6 @@
     	var DOMReady = false;
     	var readyList;
         var DOMContentLoaded;
-        this.MSIE6 = msie6;
-        this.MSIE = msie6 || (!+"\v1");
         this.Queue = Queue;
     	this.ready = function(fn){
     		bindReady();
@@ -362,6 +358,7 @@
             if(log){ log(msg); }else{
                 logCache[logCache.length] = msg;
             }
+            return this;
         };
         this.log.flash = function(){
             var str = logCache.join("\r\n");
@@ -372,7 +369,7 @@
         var cache = {};
         var guid_key = "lyjsData" + Now();
         var guid = 0;
-        var fnData = this.data = function(object, name, data){
+        this.data = function(object, name, data){
             var id = object[guid_key];
             if(!id){
                 object[guid_key] = id = ++guid;
@@ -392,33 +389,32 @@
             }else{
                 cache[id][name] = data;
             }
-            return proData;
         };
-        var proData = {
-            has:function(object){
-                object = object[guid_key] && cache[object[guid_key]];
-                return !!object && !$.isEmptyObject(object);
-            },
-            set:function(){
-                return fnData.apply(fnData, arguments);
-            },
-            remove:function(object, name){
-                var id = object[guid_key];
-                object = cache[id];
-                if(!id || !object){return;}
-                if(typeof name === "string"){
-                    name = "@" + name;
-                    delete object[name];
-                }else if(name === undefined){
-                    delete object["lyjs_data"];
-                }else if(typeof name === "object"){
-                    $.each(name, function(k){
-                        delete object[k];
-                    });
-                }
-                return fnData;
+        this.hasData = function(object){
+            object = object[guid_key] && cache[object[guid_key]];
+            return !!object && !$.isEmptyObject(object);
+        };
+        this.removeData = function(object, name){
+            var id = object[guid_key];
+            object = cache[id];
+            if(!id || !object){return;}
+            if(typeof name === "string"){
+                name = "@" + name;
+                delete object[name];
+            }else if(name === undefined){
+                delete object["lyjs_data"];
+            }else if(typeof name === "object"){
+                $.each(name, function(k){
+                    delete object[k];
+                });
             }
         };
-        $.extend(fnData, proData);
+    }).define("support", function($){
+        var msie6 = !('1'[0]) && !XMLHttpRequest;
+        if(msie6){doc.execCommand("BackgroundImageCache",false,true);}
+        $.extend(this, {
+            ie6: msie6,
+            msie: msie6 || (!+"\v1")
+        });
     });
 }(this);
