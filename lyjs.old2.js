@@ -24,15 +24,9 @@
     	types["[object " + j + "]"] = j.toLowerCase();
     });
     function Now(){ return (new Date()).getTime(); }
-    function forProperty(newObject, object){
-        for(var key in object){
-            newObject[key] = object[key];
-        }
-        return newObject;
-    }
     var $ = global[NAME] = function(object, context){
     	if($.isFunction(object)){
-    		$.ready(object);
+    		$.ready(object, context);
     	}else{
     		return new $.fn.init(object, context);
     	}
@@ -41,7 +35,32 @@
         if(n){ return n===name; }
         return name;
     }, isObject = function(j){ return j!==null && typeof j==="object" };
-    forProperty($, {
+    $.fn = $.prototype = {
+        length: 0,
+        init: function(object, context){}
+    };
+    $.fn.init.prototype = $.prototype;
+    $.extend = $.fn.extend = function(target, source){
+        var args = slice.apply(arguments), i = 1, k = args.length;
+        var depth = getTypes(args[k-1], "boolean") ? (--k,args.pop()) : true;
+        if(k == 1){ target = this; i = 0; }else if(k < 1){ return this; }
+        if(!isObject(target) && !getTypes(target,"function")){target = {};}
+        for(;source = args[i++];){
+            for(k in source){
+                var src = target[k], copy = source[k];
+                if(src === copy || copy === target){continue;}
+                if(depth || !(k in target)){
+                    if(isObject(copy)){
+                        target[k] = $.extend(src||(copy.length != null?[]:{}),copy,depth); 
+                    }else{
+                        target[k] = copy;
+                    }
+                }
+            }
+        }
+        return target;
+    };
+    $.extend({
         version: VERSION,
         timespan: TIMESPANE,
         now: Now,
@@ -73,26 +92,6 @@
                 }
             }
             return object;
-        },
-        extend: function(target, source){
-            var args = slice.apply(arguments), i = 1, k = args.length;
-            var depth = getTypes(args[k-1], "boolean") ? (--k,args.pop()) : true;
-            if(k == 1){ target = this; i = 0; }else if(k < 1){ return this; }
-            if(!isObject(target) && !getTypes(target,"function")){target = {};}
-            for(;source = args[i++];){
-                for(k in source){
-                    var src = target[k], copy = source[k];
-                    if(src === copy || copy === target){continue;}
-                    if(depth || !(k in target)){
-                        if(isObject(copy)){
-                            target[k] = $.extend(src||(copy.length != null?[]:{}),copy,depth); 
-                        }else{
-                            target[k] = copy;
-                        }
-                    }
-                }
-            }
-            return target;
         },
         define: function(ns, handle){
             var parent = $;
@@ -145,6 +144,90 @@
         },
         isUndefined: function(j){
             return typeof j === "undefined";
+        },
+        format: function(tpl, data){
+            var that = this;
+            return tpl == null ? "" : tpl.toString().replace(/{([.\w]+)}/g, function(a,b,c){
+                if(b.indexOf(".")>-1){
+                    b = b.split(".");
+                    c = b.shift();
+                    b = "{" + b.join(".") + "}";
+                    return that.format(b, data[c]);
+                }else{
+                    return data[b] || "";
+                }
+            });
+        },
+        dateFmt: function(date, fmt){
+            if(getTypes(date) !== "date"){
+                fmt = date;
+                date = new Date();
+            }
+            var d = {
+                "M+":date.getMonth() + 1,
+                "d+":date.getDate(),
+                "H+":date.getHours(),
+                "m+":date.getMinutes(),
+                "s+":date.getSeconds(),
+                "S":date.getMilliseconds()
+            }, k;
+            if(/(y+)/.test(fmt)){
+                fmt = fmt.replace(RegExp.$1, (date.getFullYear() + "").substr(4-RegExp.$1.length));
+            }
+            if(/(w)/i.test(fmt)){
+                fmt = fmt.replace(RegExp.$1, RegExp.$1=="w"?date.getDay():cnWeeks.charAt(date.getDay()));
+            }
+            for(k in d){
+                if(new RegExp("(" + k + ")").test(fmt)){
+                    fmt = fmt.replace(RegExp.$1, RegExp.$1.length==1?d[k]:("00"+d[k]).substr((d[k]+"").length));
+                }
+            }
+            return fmt;
+        },
+        padLeft: function(j, len, chr, isRight){
+            var s = j == null ? "" : j.toString(), l = s.length;
+            if(l < len){
+                l = new Array(len-l+1).join(chr||"0");
+                s = isRight ? (j + l) : (l + j);
+            }
+            return s;
+        },
+        padRight: function(j, len, chr){
+            return this.padLeft(j, len, chr, true);
+        },
+        parseJSON: function(data) {
+            if(typeof data !== "string" || !data){
+                return null;
+            }
+            data = $.trim(data);
+            if(JSON && JSON.parse){
+                return JSON.parse(data);
+            }
+            if(rvalidchars.test(data.replace(rvalidescape, "@")
+                .replace(rvalidtokens, "]")
+                .replace(rvalidbraces, ""))) {
+                return (new Function("return " + data))();
+            }
+            $.error("Invalid JSON: " + data);
+        },
+        parseXML: function(data) {
+            var xml, tmp;
+            try {
+                if(DOMParser){
+                    tmp = new DOMParser();
+                    xml = tmp.parseFromString(data, "text/xml");
+                } else {
+                    xml = new ActiveXObject("Microsoft.XMLDOM");
+                    xml.async = "false";
+                    xml.loadXML(data);
+                }
+            } catch(e) {
+                xml = undefined;
+            }
+            if (!xml || !xml.documentElement || xml.getElementsByTagName("parsererror").length) {
+                $.error("Invalid XML: " + data);
+            }
+            return xml;
         },
         get: function(deep){
             if(deep === true){ global[NAME] = LYJS; }
@@ -329,105 +412,9 @@
     }).define("support", function($){
         var msie6 = !('1'[0]) && !XMLHttpRequest;
         if(msie6){doc.execCommand("BackgroundImageCache",false,true);}
-        forProperty(this, {
+        $.extend(this, {
             ie6: msie6,
             msie: msie6 || (!+"\v1")
         });
-    }).define("fn", function($){
-        this.length = 0;
-        this.init = function(object, context){
-
-        };
-        this.extend = $.extend;
-        this.init.prototype = $.prototype = this;
-    }).define("lang", function($){
-        forProperty(this, {
-            format: function(tpl, data){
-                var that = this;
-                return tpl == null ? "" : tpl.toString().replace(/{([.\w]+)}/g, function(a,b,c){
-                    if(b.indexOf(".")>-1){
-                        b = b.split(".");
-                        c = b.shift();
-                        b = "{" + b.join(".") + "}";
-                        return that.format(b, data[c]);
-                    }else{
-                        return data[b] || "";
-                    }
-                });
-            },
-            dateFmt: function(date, fmt){
-                if(getTypes(date) !== "date"){
-                    fmt = date;
-                    date = new Date();
-                }
-                var d = {
-                    "M+":date.getMonth() + 1,
-                    "d+":date.getDate(),
-                    "H+":date.getHours(),
-                    "m+":date.getMinutes(),
-                    "s+":date.getSeconds(),
-                    "S":date.getMilliseconds()
-                }, k;
-                if(/(y+)/.test(fmt)){
-                    fmt = fmt.replace(RegExp.$1, (date.getFullYear() + "").substr(4-RegExp.$1.length));
-                }
-                if(/(w)/i.test(fmt)){
-                    fmt = fmt.replace(RegExp.$1, RegExp.$1=="w"?date.getDay():cnWeeks.charAt(date.getDay()));
-                }
-                for(k in d){
-                    if(new RegExp("(" + k + ")").test(fmt)){
-                        fmt = fmt.replace(RegExp.$1, RegExp.$1.length==1?d[k]:("00"+d[k]).substr((d[k]+"").length));
-                    }
-                }
-                return fmt;
-            },
-            padLeft: function(j, len, chr, isRight){
-                var s = j == null ? "" : j.toString(), l = s.length;
-                if(l < len){
-                    l = new Array(len-l+1).join(chr||"0");
-                    s = isRight ? (j + l) : (l + j);
-                }
-                return s;
-            },
-            padRight: function(j, len, chr){
-                return this.padLeft(j, len, chr, true);
-            },
-            parseJSON: function(data) {
-                if(typeof data !== "string" || !data){
-                    return null;
-                }
-                data = $.trim(data);
-                if(JSON && JSON.parse){
-                    return JSON.parse(data);
-                }
-                if(rvalidchars.test(data.replace(rvalidescape, "@")
-                    .replace(rvalidtokens, "]")
-                    .replace(rvalidbraces, ""))) {
-                    return (new Function("return " + data))();
-                }
-                $.error("Invalid JSON: " + data);
-            },
-            parseXML: function(data) {
-                var xml, tmp;
-                try {
-                    if(DOMParser){
-                        tmp = new DOMParser();
-                        xml = tmp.parseFromString(data, "text/xml");
-                    } else {
-                        xml = new ActiveXObject("Microsoft.XMLDOM");
-                        xml.async = "false";
-                        xml.loadXML(data);
-                    }
-                } catch(e) {
-                    xml = undefined;
-                }
-                if (!xml || !xml.documentElement || xml.getElementsByTagName("parsererror").length) {
-                    $.error("Invalid XML: " + data);
-                }
-                return xml;
-            }
-        });
     });
 }(this);
-console.log("run time:" + ($.now() - $.timespan) + "ms");
-console.dir($);
