@@ -356,7 +356,10 @@
         });
         this.init.prototype = $.prototype = this;
     }).define("lang", function($){
+        var head = doc.head;
+        head = head || (head = doc.getElementsByTagName("HEAD") && head[0]) || doc.documentElement;
         forProperty(this, {
+            docHead: head,
             compare: function(target, source){
                 if(target == null || source == null){ return target === source; }
                 return (target == source && target.constructor.toString() == source.constructor);
@@ -444,6 +447,18 @@
                     $.error("Invalid XML: " + data);
                 }
                 return xml;
+            },
+            loadScript:function(url, callback){
+                var domScript = doc.createElement("SCRIPT");
+                domScript.type = "text/javascript";
+                domScript.async = true;
+                domScript.src = url;
+                if($.isFunction(callback)){
+                    domScript.onload = domScript.onreadystatechange = function(){
+                        callback(this.readyState)
+                    };
+                }
+                head.insertBefore(domScript, head.firstChild);
             }
         });
     });
