@@ -124,10 +124,6 @@
             }
             return ns;
         },
-        compare: function(target, source){
-            if(target == null || source == null){ return target === source; }
-            return (target == source && target.constructor.toString() == source.constructor);
-        },
         type: getTypes,
         isObject: isObject,
         isNumeric: function(j){
@@ -334,14 +330,37 @@
             msie: msie6 || (!+"\v1")
         });
     }).define("fn", function($){
-        this.length = 0;
-        this.init = function(object, context){
+        forProperty(this, {
+            length:0,
+            extend:$.extend,
+            init:function(object, context){
 
-        };
-        this.extend = $.extend;
+            },
+            attr:function(){},
+            removeAttr:function(){},
+            hasClass:function(){},
+            addClass:function(){},
+            removeClass:function(){},
+            html:function(){},
+            text:function(){},
+            val:function(){}
+        });
+        forProperty(this, {
+            eq:function(){},
+            hasClass:function(){},
+            filter:function(){},
+            map:function(){},
+            has:function(){},
+            not:function(){},
+            slice:function(){}
+        });
         this.init.prototype = $.prototype = this;
     }).define("lang", function($){
         forProperty(this, {
+            compare: function(target, source){
+                if(target == null || source == null){ return target === source; }
+                return (target == source && target.constructor.toString() == source.constructor);
+            },
             format: function(tpl, data){
                 var that = this;
                 return tpl == null ? "" : tpl.toString().replace(/{([.\w]+)}/g, function(a,b,c){
